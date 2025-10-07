@@ -13,7 +13,7 @@ LDFLAGS =
 CC = g++
 
 # Разделяем исходные файлы на библиотечные и приложения
-LIB_SOURCES = file_func.cpp assembler.cpp work_with_buffer.cpp executor.cpp
+LIB_SOURCES = file_func.cpp work_with_buffer.cpp executor.cpp
 APP_SOURCES = main.cpp
 
 # Пути к проекту стека

@@ -6,7 +6,7 @@
 #include "work_with_buffer.h"
 
 
-void FreeBuffer(char** buffer) {
+void FreeBuffer(int** buffer) {
 
     assert (buffer != nullptr);
 

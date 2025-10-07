@@ -5,6 +5,8 @@
 #include "color_lib.h"
 
 #include "executor.h"
+#include "assembler.h"
+#include "work_with_buffer.h"
 
 static int ReadDataOToBuffer(struct Processor* proc, const char* filename);
 
@@ -20,53 +22,73 @@ int Executor(const char* filename_in, size_t count) {
     stack_elem_t value2 = POISON;
     CHECK_ERROR(StackCtor(&(proc.stack), 16));
 
-    size_t pos = 0;
-    while (proc.buffer[pos] != 0) {
-        switch(proc.buffer[pos]) {
-            case 1: // PUSH
-                pos++;
-                CHECK_ERROR(StackPush(&(proc.stack), proc.buffer[pos]));
+    int run = 1;
+
+    while (run) {
+        switch(static_cast<CMD>(proc.buffer[(proc.cmd_count)++])) {
+            case CMD::CMD_HLT:
+                run = 0;
                 break;
-            case 2: // POP
+            case CMD::CMD_PUSH:
+                CHECK_ERROR(StackPush(&(proc.stack), proc.buffer[(proc.cmd_count)++]));
+                break;
+            case CMD::CMD_POP:
                 CHECK_ERROR(StackPop(&(proc.stack), &value1));
                 break;
-            case 3: // ADD
+            case CMD::CMD_ADD:
                 CHECK_ERROR(StackPop(&(proc.stack), &value2));
                 CHECK_ERROR(StackPop(&(proc.stack), &value1));
                 CHECK_ERROR(StackPush(&(proc.stack), value1 + value2));
                 break;
-            case 4: // SUB
+            case CMD::CMD_SUB:
                 CHECK_ERROR(StackPop(&(proc.stack), &value2));
                 CHECK_ERROR(StackPop(&(proc.stack), &value1));
                 CHECK_ERROR(StackPush(&(proc.stack), value1 - value2));
                 break;
-            case 5: // MUL
+            case CMD::CMD_MUL:
                 CHECK_ERROR(StackPop(&(proc.stack), &value2));
                 CHECK_ERROR(StackPop(&(proc.stack), &value1));
                 CHECK_ERROR(StackPush(&(proc.stack), value1 * value2));
                 break;
-            case 6: // DIV
+            case CMD::CMD_DIV:
                 CHECK_ERROR(StackPop(&(proc.stack), &value2));
                 CHECK_ERROR(StackPop(&(proc.stack), &value1));
                 CHECK_ERROR(StackPush(&(proc.stack), value1 / value2));
                 break;
-            case 7: // POW
+            case CMD::CMD_POW:
                 CHECK_ERROR(StackPop(&(proc.stack), &value2));
                 CHECK_ERROR(StackPop(&(proc.stack), &value1));
                 CHECK_ERROR(StackPush(&(proc.stack), pow(value1, value2)));
                 break;
-            case 8: // SQRT
+            case CMD::CMD_SQRT:
                 CHECK_ERROR(StackPop(&(proc.stack), &value1));
                 CHECK_ERROR(StackPush(&(proc.stack), sqrt(value1)));
                 break;
-            case 9: // OUT
+            case CMD::CMD_IN:
+                ENTER_STACK_ELEMENT(&value1);
+                CHECK_ERROR(StackPush(&(proc.stack), value1));
+                break;
+            case CMD::CMD_OUT:
                 CHECK_ERROR(StackPop(&(proc.stack), &value1));
                 PRINT_STACK_ELEMENT(BASE, value1);
                 break;
-            default: break;
+            case CMD::CMD_PUSHR:
+                CHECK_ERROR(StackPush(&(proc.stack), proc.reg_array[proc.buffer[(proc.cmd_count)++]]));
+                break;
+            case CMD::CMD_POPR:
+                CHECK_ERROR(StackPop(&(proc.stack), &(proc.reg_array[proc.buffer[(proc.cmd_count)++]])));
+                break;
+            default:
+                PRINT_COLOR(RED, "Unknown command\n");
+                return 1;
         }
-        pos++;
     }
+
+    CHECK_ERROR(StackDtor(&(proc.stack)));
+    free(proc.buffer);
+    proc.buffer      = nullptr;
+    proc.buffer_size = 0;
+    proc.cmd_count   = 0;
     return 0;
 }
 
