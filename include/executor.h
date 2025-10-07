@@ -11,7 +11,8 @@ typedef enum class PROC_ERROR : char {
     UNKNOWN_COMMAND   = 2,
     BUFFER_NULL_PTR   = 3,
     FILL_BUFFER_ERROR = 4,
-    CMD_JUMP_ERROR    = 5
+    CMD_JUMP_ERROR    = 5,
+    PROC_ERR_INVALID_CONDITION = 6
 } proc_error_t;
 
 struct Processor {
