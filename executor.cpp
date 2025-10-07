@@ -4,6 +4,7 @@
 #include "../stack/stack.h"
 #include "../assembler/asm.h"
 #include "color_lib.h"
+#include "define_lib.h"
 
 #include "executor.h"
 #include "work_with_buffer.h"
@@ -17,16 +18,17 @@ static stack_error_t StackPow(stack_type* stack);
 static stack_error_t StackSqrt(stack_type* stack);
 static proc_error_t StackJMP(struct Processor* proc);
 
-enum class Condition : char {
-    COND_ABOVE       = 0,   // JA
-    COND_ABOVE_EQUAL = 1,   // JAE
-    COND_BELOW       = 2,   // JB
-    COND_BELOW_EQUAL = 3,   // JBE
-    COND_EQUAL       = 4,   // JE
-    COND_NOT_EQUAL   = 5    // JNE
-};
-
-static proc_error_t StackJMPCond(struct Processor* proc, Condition cond);
+#define STACK_JMP_CONDITION(cond) BEGIN {\
+    stack_elem_t value1 = POISON; \
+    stack_elem_t value2 = POISON; \
+    CHECK_STACK_ERROR(StackPop(&(proc.stack), &value2)); \
+    CHECK_STACK_ERROR(StackPop(&(proc.stack), &value1)); \
+    if (value1 cond value2) { \
+        if (StackJMP(&proc) != proc_error_t::OK) { \
+            return proc_error_t::CMD_JUMP_ERROR; \
+        } \
+    } else { proc.cmd_count++; } \
+} END
 
 void PrintReg(const stack_elem_t reg_array[REGISTERS_COUNT]);
 
@@ -90,22 +92,22 @@ proc_error_t Executor(const char* filename_in) {
                 StackJMP(&proc);
                 break;
             case CMD::CMD_JB:
-                StackJMPCond(&proc, Condition::COND_BELOW);
+                STACK_JMP_CONDITION(<);
                 break;
             case CMD::CMD_JBE:
-                StackJMPCond(&proc, Condition::COND_BELOW_EQUAL);
+                STACK_JMP_CONDITION(<=);
                 break;
             case CMD::CMD_JA:
-                StackJMPCond(&proc, Condition::COND_ABOVE);
+                STACK_JMP_CONDITION(>);
                 break;
             case CMD::CMD_JAE:
-                StackJMPCond(&proc, Condition::COND_ABOVE_EQUAL);
+                STACK_JMP_CONDITION(>=);
                 break;
             case CMD::CMD_JE:
-                StackJMPCond(&proc, Condition::COND_EQUAL);
+                STACK_JMP_CONDITION(==);
                 break;
             case CMD::CMD_JNE:
-                StackJMPCond(&proc, Condition::COND_NOT_EQUAL);
+                STACK_JMP_CONDITION(!=);
                 break;
             case CMD::CMD_PUSHR:
                 CHECK_STACK_ERROR(StackPush(&(proc.stack), proc.reg_array[proc.buffer[(proc.cmd_count)++]]));
@@ -231,46 +233,6 @@ static stack_error_t StackSqrt(stack_type* stack) {
 
 static proc_error_t StackJMP(struct Processor* proc) {
     proc->cmd_count = (size_t)(proc->buffer[proc->cmd_count]);
-    return proc_error_t::OK;
-}
-
-static proc_error_t StackJMPCond(struct Processor* proc, Condition cond) {
-    stack_elem_t value1 = POISON;
-    stack_elem_t value2 = POISON;
-    CHECK_STACK_ERROR(StackPop(&(proc->stack), &value2));
-    CHECK_STACK_ERROR(StackPop(&(proc->stack), &value1));
-
-    bool result = false;
-    switch (cond) {
-        case Condition::COND_ABOVE:
-            result = (value1 > value2);
-            break;
-        case Condition::COND_ABOVE_EQUAL:
-            result = (value1 >= value2);
-            break;
-        case Condition::COND_BELOW:
-            result = (value1 < value2);
-            break;
-        case Condition::COND_BELOW_EQUAL:
-            result = (value1 <= value2);
-            break;
-        case Condition::COND_EQUAL:
-            result = (value1 == value2);
-            break;
-        case Condition::COND_NOT_EQUAL:
-            result = (value1 != value2);
-            break;
-        default:
-            return proc_error_t::PROC_ERR_INVALID_CONDITION;
-    }
-
-    if (result) {
-        if (StackJMP(proc) != proc_error_t::OK) {
-            return proc_error_t::CMD_JUMP_ERROR;
-        }
-    } else {
-        proc->cmd_count++;
-    }
     return proc_error_t::OK;
 }
 
