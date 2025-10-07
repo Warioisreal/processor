@@ -15,15 +15,24 @@ static stack_error_t StackMul(stack_type* stack);
 static stack_error_t StackDiv(stack_type* stack);
 static stack_error_t StackPow(stack_type* stack);
 static stack_error_t StackSqrt(stack_type* stack);
+static proc_error_t StackJMP(struct Processor* proc);
+static proc_error_t StackJB(struct Processor* proc);
+static proc_error_t StackJBE(struct Processor* proc);
+static proc_error_t StackJA(struct Processor* proc);
+static proc_error_t StackJAE(struct Processor* proc);
+static proc_error_t StackJE(struct Processor* proc);
+static proc_error_t StackJNE(struct Processor* proc);
+
+void PrintReg(const stack_elem_t reg_array[REGISTERS_COUNT]);
 
 #define CHECK_STACK_COMMAND(error) if (error != stack_error_t::OK) { return error; }
 #define CHECK_STACK_ERROR(error) if (error != stack_error_t::OK) { return proc_error_t::STACK_ERROR; }
 
 
-proc_error_t Executor(const char* filename_in, size_t count) {
+proc_error_t Executor(const char* filename_in) {
     assert (filename_in != nullptr);
 
-    struct Processor proc = {.buffer_size = count};
+    struct Processor proc = {};
 
     if (ReadDataOToBuffer(&proc, filename_in)) { return proc_error_t::FILL_BUFFER_ERROR; }
 
@@ -33,6 +42,8 @@ proc_error_t Executor(const char* filename_in, size_t count) {
     int run = 1;
 
     while (run) {
+        printf("command: %s\n", CMD_ARRAY[proc.buffer[proc.cmd_count]].text_cmd);
+
         switch(static_cast<CMD>(proc.buffer[(proc.cmd_count)++])) {
             case CMD::CMD_HLT:
                 run = 0;
@@ -67,7 +78,29 @@ proc_error_t Executor(const char* filename_in, size_t count) {
                 break;
             case CMD::CMD_OUT:
                 CHECK_STACK_ERROR(StackPop(&(proc.stack), &value));
+                PRINT_COLOR(CYAN, "OUT: ");
                 PRINT_STACK_ELEMENT(BASE, value);
+                break;
+            case CMD::CMD_JMP:
+                StackJMP(&proc);
+                break;
+            case CMD::CMD_JB:
+                StackJB(&proc);
+                break;
+            case CMD::CMD_JBE:
+                StackJBE(&proc);
+                break;
+            case CMD::CMD_JA:
+                StackJA(&proc);
+                break;
+            case CMD::CMD_JAE:
+                StackJAE(&proc);
+                break;
+            case CMD::CMD_JE:
+                StackJE(&proc);
+                break;
+            case CMD::CMD_JNE:
+                StackJNE(&proc);
                 break;
             case CMD::CMD_PUSHR:
                 CHECK_STACK_ERROR(StackPush(&(proc.stack), proc.reg_array[proc.buffer[(proc.cmd_count)++]]));
@@ -79,6 +112,13 @@ proc_error_t Executor(const char* filename_in, size_t count) {
                 PRINT_COLOR(RED, "Unknown command\n");
                 return proc_error_t::UNKNOWN_COMMAND;
         }
+
+        printf("cmd_count: %zu\n", proc.cmd_count);
+        PrintStack(&(proc.stack));
+        PrintReg(proc.reg_array);
+        printf("____________________________________\n");
+        getchar();
+
     }
 
     CHECK_STACK_ERROR(StackDtor(&(proc.stack)));
@@ -100,8 +140,16 @@ static int ReadDataOToBuffer(struct Processor* proc, const char* filename) {
         PRINT_COLOR_VAR(RED, "file open error: \"%s\"\n", filename);
         return 1;
     }
+    size_t count = 0;
+    if(fscanf(file, "%zu", &count)) {
+        proc->buffer_size = count;
+    } else {
+        PRINT_COLOR_VAR(RED, "buffer_size read error: %zu\n", count);
+        return 1;
+    }
 
-    int* buf_ = (int*)calloc(proc->buffer_size + 1, sizeof(int));
+
+    int* buf_ = (int*)calloc(count + 1, sizeof(int));
     if (buf_ == nullptr) {
         PRINT_COLOR(RED, "buffer calloc error\n");
         return 1;
@@ -109,12 +157,12 @@ static int ReadDataOToBuffer(struct Processor* proc, const char* filename) {
     proc->buffer = buf_;
 
     int cmd = 0;
-    for (size_t pos = 0; pos < proc->buffer_size; pos++) {
+    for (size_t pos = 0; pos < count; pos++) {
         if (fscanf(file, "%d", &cmd)) {
             proc->buffer[pos] = cmd;
         } else {
             PRINT_COLOR_VAR(RED, "fscanf error on cmd: %zu\n", pos);
-            return 1; // error
+            return 1;
         }
     }
 
@@ -174,4 +222,108 @@ static stack_error_t StackSqrt(stack_type* stack) {
     CHECK_STACK_COMMAND(StackPop(stack, &value));
     CHECK_STACK_COMMAND(StackPush(stack, sqrt(value)));
     return stack_error_t::OK;
+}
+
+static proc_error_t StackJMP(struct Processor* proc) {
+    proc->cmd_count = (size_t)(proc->buffer[proc->cmd_count]);
+    return proc_error_t::OK;
+}
+
+static proc_error_t StackJB(struct Processor* proc) {
+    stack_elem_t value1 = POISON;
+    stack_elem_t value2 = POISON;
+    CHECK_STACK_ERROR(StackPop(&(proc->stack), &value2));
+    CHECK_STACK_ERROR(StackPop(&(proc->stack), &value1));
+    if (value1 < value2) {
+        if (StackJMP(proc) != proc_error_t::OK) {
+            return proc_error_t::CMD_JUMP_ERROR;
+        }
+    } else {
+        proc->cmd_count++;
+    }
+    return proc_error_t::OK;
+}
+
+static proc_error_t StackJBE(struct Processor* proc) {
+    stack_elem_t value1 = POISON;
+    stack_elem_t value2 = POISON;
+    CHECK_STACK_ERROR(StackPop(&(proc->stack), &value2));
+    CHECK_STACK_ERROR(StackPop(&(proc->stack), &value1));
+    if (value1 <= value2) {
+        if (StackJMP(proc) != proc_error_t::OK) {
+            return proc_error_t::CMD_JUMP_ERROR;
+        }
+    } else {
+        proc->cmd_count++;
+    }
+    return proc_error_t::OK;
+}
+
+static proc_error_t StackJA(struct Processor* proc) {
+    stack_elem_t value1 = POISON;
+    stack_elem_t value2 = POISON;
+    CHECK_STACK_ERROR(StackPop(&(proc->stack), &value2));
+    CHECK_STACK_ERROR(StackPop(&(proc->stack), &value1));
+    if (value1 > value2) {
+        if (StackJMP(proc) != proc_error_t::OK) {
+            return proc_error_t::CMD_JUMP_ERROR;
+        }
+    } else {
+        proc->cmd_count++;
+    }
+    return proc_error_t::OK;
+}
+
+static proc_error_t StackJAE(struct Processor* proc) {
+    stack_elem_t value1 = POISON;
+    stack_elem_t value2 = POISON;
+    CHECK_STACK_ERROR(StackPop(&(proc->stack), &value2));
+    CHECK_STACK_ERROR(StackPop(&(proc->stack), &value1));
+    if (value1 >= value2) {
+        if (StackJMP(proc) != proc_error_t::OK) {
+            return proc_error_t::CMD_JUMP_ERROR;
+        }
+    } else {
+        proc->cmd_count++;
+    }
+    return proc_error_t::OK;
+}
+
+static proc_error_t StackJE(struct Processor* proc) {
+    stack_elem_t value1 = POISON;
+    stack_elem_t value2 = POISON;
+    CHECK_STACK_ERROR(StackPop(&(proc->stack), &value2));
+    CHECK_STACK_ERROR(StackPop(&(proc->stack), &value1));
+    if (value1 == value2) {
+        if (StackJMP(proc) != proc_error_t::OK) {
+            return proc_error_t::CMD_JUMP_ERROR;
+        }
+    } else {
+        proc->cmd_count++;
+    }
+    return proc_error_t::OK;
+}
+
+static proc_error_t StackJNE(struct Processor* proc) {
+    stack_elem_t value1 = POISON;
+    stack_elem_t value2 = POISON;
+    CHECK_STACK_ERROR(StackPop(&(proc->stack), &value2));
+    CHECK_STACK_ERROR(StackPop(&(proc->stack), &value1));
+    if (value1 != value2) {
+        if (StackJMP(proc) != proc_error_t::OK) {
+            return proc_error_t::CMD_JUMP_ERROR;
+        }
+    } else {
+        proc->cmd_count++;
+    }
+    return proc_error_t::OK;
+}
+
+void PrintReg(const stack_elem_t reg_array[REGISTERS_COUNT]) {
+    PRINT_COLOR(YELLOW, "reg_array:\n");
+    for (size_t pos = 0; pos < REGISTERS_COUNT; pos++) {
+        PRINT_COLOR_VAR(BASE, "    [%zu] = ", pos);
+        PRINT_STACK_ELEMENT(BASE, reg_array[pos]);
+    }
+    printf("\n");
 }

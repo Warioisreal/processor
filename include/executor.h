@@ -3,14 +3,15 @@
 
 #include "../stack/stack.h"
 
-const size_t REGISTERS_COUNT = 16;
+const size_t REGISTERS_COUNT = 8;
 
 typedef enum class PROC_ERROR : char {
     OK                = 0,
     STACK_ERROR       = 1,
     UNKNOWN_COMMAND   = 2,
     BUFFER_NULL_PTR   = 3,
-    FILL_BUFFER_ERROR = 4
+    FILL_BUFFER_ERROR = 4,
+    CMD_JUMP_ERROR    = 5
 } proc_error_t;
 
 struct Processor {
@@ -22,6 +23,6 @@ struct Processor {
 };
 
 
-proc_error_t Executor(const char* filename_in, size_t count);
+proc_error_t Executor(const char* filename_in);
 
 #endif // _EXECUTOR_H_
